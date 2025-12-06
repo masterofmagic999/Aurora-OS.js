@@ -13,7 +13,7 @@ import { Browser } from './components/apps/Browser';
 import { Terminal } from './components/apps/Terminal';
 import { PlaceholderApp } from './components/apps/PlaceholderApp';
 import { AppProvider } from './components/AppContext';
-import { FileSystemProvider } from './components/FileSystemContext';
+import { FileSystemProvider, useFileSystem } from './components/FileSystemContext';
 import { Toaster } from './components/ui/sonner';
 
 export interface WindowState {
@@ -34,57 +34,75 @@ export interface DesktopIcon {
   position: { x: number; y: number };
 }
 
-const DESKTOP_ICONS_STORAGE_KEY = 'aurora-os-desktop-icons';
+const POSITIONS_STORAGE_KEY = 'aurora-os-desktop-positions';
+const LEGACY_ICONS_KEY = 'aurora-os-desktop-icons';
 
-const defaultDesktopIcons: DesktopIcon[] = [
-  { id: '1', name: 'Documents', type: 'folder', position: { x: 100, y: 80 } },
-  { id: '2', name: 'Downloads', type: 'folder', position: { x: 100, y: 200 } },
-  { id: '3', name: 'Pictures', type: 'folder', position: { x: 100, y: 320 } },
-  { id: '4', name: 'Music', type: 'folder', position: { x: 100, y: 440 } },
-];
-
-function loadDesktopIcons(): DesktopIcon[] {
+function loadIconPositions(): Record<string, { x: number; y: number }> {
   try {
-    const stored = localStorage.getItem(DESKTOP_ICONS_STORAGE_KEY);
+    const stored = localStorage.getItem(POSITIONS_STORAGE_KEY);
     if (stored) {
       return JSON.parse(stored);
     }
+
+    // Migration from old array format
+    const legacy = localStorage.getItem(LEGACY_ICONS_KEY);
+    if (legacy) {
+      const icons = JSON.parse(legacy);
+      const positions: Record<string, { x: number; y: number }> = {};
+      icons.forEach((icon: any) => {
+        positions[icon.name] = icon.position;
+      });
+      return positions;
+    }
   } catch (e) {
-    console.warn('Failed to load desktop icons:', e);
+    console.warn('Failed to load desktop positions:', e);
   }
-  return defaultDesktopIcons;
+  return {};
 }
 
-function saveDesktopIcons(icons: DesktopIcon[]) {
-  try {
-    localStorage.setItem(DESKTOP_ICONS_STORAGE_KEY, JSON.stringify(icons));
-  } catch (e) {
-    console.warn('Failed to save desktop icons:', e);
-  }
-}
-
-export default function App() {
+function OS() {
   // Windows reset on refresh (not persisted)
   const [windows, setWindows] = useState<WindowState[]>([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [topZIndex, setTopZIndex] = useState(100);
 
-  // Desktop icons are persisted
-  const [desktopIcons, setDesktopIcons] = useState<DesktopIcon[]>(() => loadDesktopIcons());
+  // FileSystem Integration
+  const { listDirectory, resolvePath, getNodeAtPath } = useFileSystem();
 
-  // Save desktop icons whenever they change
+  // Icon Positions State
+  const [iconPositions, setIconPositions] = useState<Record<string, { x: number; y: number }>>(loadIconPositions);
+
+  // Save positions when they change
   useEffect(() => {
-    saveDesktopIcons(desktopIcons);
-  }, [desktopIcons]);
+    localStorage.setItem(POSITIONS_STORAGE_KEY, JSON.stringify(iconPositions));
+  }, [iconPositions]);
 
-  const openWindow = useCallback((type: string) => {
+  // Derive desktop icons from filesystem + positions
+  const desktopIcons = useMemo(() => {
+    const desktopPath = resolvePath('~/Desktop');
+    const files = listDirectory(desktopPath) || [];
+
+    return files.map((file, index) => {
+      const storedPos = iconPositions[file.name];
+      const defaultPos = { x: 100, y: 80 + index * 120 }; // Simple vertical layout
+
+      return {
+        id: file.name, // Use filename as ID
+        name: file.name,
+        type: file.type === 'directory' ? 'folder' : 'file',
+        position: storedPos || defaultPos,
+      } as DesktopIcon;
+    });
+  }, [listDirectory, resolvePath, iconPositions]);
+
+  const openWindow = useCallback((type: string, data?: any) => {
     let content: React.ReactNode;
     let title: string;
 
     switch (type) {
       case 'finder':
         title = 'Finder';
-        content = <FileManager />;
+        content = <FileManager initialPath={data?.path} />;
         break;
       case 'settings':
         title = 'System Settings';
@@ -108,7 +126,7 @@ export default function App() {
         break;
       case 'terminal':
         title = 'Terminal';
-        content = <Terminal />;
+        content = <Terminal onLaunchApp={(id, args) => openWindow(id, { path: args?.[0] })} />;
         break;
       default:
         title = type.charAt(0).toUpperCase() + type.slice(1);
@@ -142,13 +160,11 @@ export default function App() {
         w.id === id ? { ...w, isMinimized: true } : w
       );
 
-      // Find the next visible window with highest zIndex to focus
       const visibleWindows = updated.filter(w => !w.isMinimized);
       if (visibleWindows.length > 0) {
         const topWindow = visibleWindows.reduce((max, w) =>
           w.zIndex > max.zIndex ? w : max, visibleWindows[0]
         );
-        // Bump its zIndex to make it focused
         const newZIndex = topZIndex + 1;
         setTopZIndex(newZIndex);
         return updated.map(w =>
@@ -182,77 +198,89 @@ export default function App() {
     ));
   }, []);
 
-
-
   const updateIconPosition = useCallback((id: string, position: { x: number; y: number }) => {
-    setDesktopIcons(prevIcons => prevIcons.map(icon =>
-      icon.id === id ? { ...icon, position } : icon
-    ));
+    setIconPositions(prev => ({
+      ...prev,
+      [id]: position
+    }));
   }, []);
 
   const toggleNotifications = useCallback(() => {
     setShowNotifications(prev => !prev);
   }, []);
 
-  const handleIconDoubleClick = useCallback(() => {
-    openWindow('finder');
-  }, [openWindow]);
+  const handleIconDoubleClick = useCallback((id: string) => {
+    // Check if item is a folder to open path
+    const path = resolvePath(`~/Desktop/${id}`);
+    const node = getNodeAtPath(path);
 
-  // Get the highest zIndex to determine focused window
+    if (node?.type === 'directory') {
+      openWindow('finder', { path });
+    } else {
+      // For now, doing nothing for files, or could open Finder at desktop
+      // Future: Open file with appropriate app
+    }
+  }, [resolvePath, getNodeAtPath, openWindow]);
+
   const focusedWindowId = useMemo(() => {
     if (windows.length === 0) return null;
     return windows.reduce((max, w) => w.zIndex > max.zIndex ? w : max, windows[0]).id;
   }, [windows]);
 
-  // Extract app type from focused window ID (format: "apptype-timestamp")
   const focusedAppType = useMemo(() => {
     if (!focusedWindowId) return null;
     return focusedWindowId.split('-')[0];
   }, [focusedWindowId]);
 
   return (
+    <div className="dark h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">
+      <Desktop
+        onDoubleClick={() => { }}
+        icons={desktopIcons}
+        onUpdateIconPosition={updateIconPosition}
+        onIconDoubleClick={handleIconDoubleClick}
+      />
+
+      <MenuBar
+        onNotificationsClick={toggleNotifications}
+        focusedApp={focusedAppType}
+      />
+
+      <Dock
+        onOpenApp={openWindow}
+        onRestoreWindow={focusWindow}
+        onFocusWindow={focusWindow}
+        windows={windows}
+      />
+
+      {windows.map(window => (
+        <Window
+          key={window.id}
+          window={window}
+          onClose={() => closeWindow(window.id)}
+          onMinimize={() => minimizeWindow(window.id)}
+          onMaximize={() => maximizeWindow(window.id)}
+          onFocus={() => focusWindow(window.id)}
+          onUpdatePosition={(pos) => updateWindowPosition(window.id, pos)}
+          isFocused={window.id === focusedWindowId}
+        />
+      ))}
+
+      <NotificationCenter
+        isOpen={showNotifications}
+        onClose={() => setShowNotifications(false)}
+      />
+
+      <Toaster />
+    </div>
+  );
+}
+
+export default function App() {
+  return (
     <AppProvider>
       <FileSystemProvider>
-        <div className="dark h-screen w-screen overflow-hidden bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900 relative">
-          <Desktop
-            onDoubleClick={() => { }}
-            icons={desktopIcons}
-            onUpdateIconPosition={updateIconPosition}
-            onIconDoubleClick={handleIconDoubleClick}
-          />
-
-          <MenuBar
-            onNotificationsClick={toggleNotifications}
-            focusedApp={focusedAppType}
-          />
-
-          <Dock
-            onOpenApp={openWindow}
-            onRestoreWindow={focusWindow}
-            onFocusWindow={focusWindow}
-            windows={windows}
-          />
-
-          {windows.map(window => (
-            <Window
-              key={window.id}
-              window={window}
-              onClose={() => closeWindow(window.id)}
-              onMinimize={() => minimizeWindow(window.id)}
-              onMaximize={() => maximizeWindow(window.id)}
-              onFocus={() => focusWindow(window.id)}
-              onUpdatePosition={(pos) => updateWindowPosition(window.id, pos)}
-              isFocused={window.id === focusedWindowId}
-            />
-          ))}
-
-          <NotificationCenter
-            isOpen={showNotifications}
-            onClose={() => setShowNotifications(false)}
-          />
-
-          <Toaster />
-        </div>
+        <OS />
       </FileSystemProvider>
     </AppProvider>
   );
