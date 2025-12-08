@@ -1,77 +1,19 @@
 import { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
+import { toast } from 'sonner';
 
-export interface FileNode {
-  id: string;
-  name: string;
-  type: 'file' | 'directory';
-  content?: string;
-  children?: FileNode[];
-  permissions?: string;
-  owner?: string;
-  group?: string;
-  size?: number;
-  modified?: Date;
-}
+import {
+  FileNode,
+  deepCloneFileNode,
+  deepCloneFileSystem,
+  ensureIds,
+  isDescendant,
+  findNodeAndParent,
+  initialFileSystem
+} from '../utils/fileSystemUtils';
 
-// Efficient deep clone function for FileNode
-function deepCloneFileNode(node: FileNode): FileNode {
-  const cloned: FileNode = {
-    id: node.id,
-    name: node.name,
-    type: node.type,
-    content: node.content,
-    permissions: node.permissions,
-    owner: node.owner,
-    group: node.group,
-    size: node.size,
-    modified: node.modified ? new Date(node.modified) : undefined,
-  };
+export type { FileNode } from '../utils/fileSystemUtils';
 
-  if (node.children) {
-    cloned.children = node.children.map(child => deepCloneFileNode(child));
-  }
 
-  return cloned;
-}
-
-// Ensure every node has an ID (recursive)
-function ensureIds(node: any): FileNode {
-  if (!node.id) {
-    node.id = crypto.randomUUID();
-  }
-
-  if (node.children) {
-    node.children.forEach((child: any) => ensureIds(child));
-  }
-
-  return node as FileNode;
-}
-
-// Efficient deep clone for entire file system with ID assurance
-function deepCloneFileSystem(root: FileNode): FileNode {
-  const cloned = deepCloneFileNode(root);
-  return ensureIds(cloned);
-}
-
-// Helper to create a user home directory structure (macOS-inspired)
-function createUserHome(username: string): any {
-  return {
-    name: username,
-    type: 'directory',
-    owner: username,
-    permissions: 'drwxr-x---',
-    children: [
-      { name: 'Desktop', type: 'directory', children: [], owner: username, permissions: 'drwxr-xr-x' },
-      { name: 'Documents', type: 'directory', children: [], owner: username, permissions: 'drwxr-xr-x' },
-      { name: 'Downloads', type: 'directory', children: [], owner: username, permissions: 'drwxr-xr-x' },
-      { name: 'Pictures', type: 'directory', children: [], owner: username, permissions: 'drwxr-xr-x' },
-      { name: 'Music', type: 'directory', children: [], owner: username, permissions: 'drwxr-xr-x' },
-      { name: 'Videos', type: 'directory', children: [], owner: username, permissions: 'drwxr-xr-x' },
-      { name: 'Config', type: 'directory', children: [], owner: username, permissions: 'drwxr-x---' },
-      { name: '.Trash', type: 'directory', children: [], owner: username, permissions: 'drwx------' },
-    ],
-  };
-}
 
 export interface FileSystemContextType {
   fileSystem: FileNode;
@@ -93,254 +35,6 @@ export interface FileSystemContextType {
 }
 
 const STORAGE_KEY = 'aurora-filesystem';
-
-// Grey Hack / Linux inspired file system hierarchy
-// Note: IDs will be injected by ensureIds on load
-const initialFileSystem: any = {
-  name: '/',
-  type: 'directory',
-  permissions: 'drwxr-xr-x',
-  owner: 'root',
-  children: [
-    // Essential command binaries
-    {
-      name: 'bin',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        { name: 'ls', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# list directory contents' },
-        { name: 'cat', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# concatenate files' },
-        { name: 'cd', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# change directory' },
-        { name: 'pwd', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# print working directory' },
-        { name: 'mkdir', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# make directories' },
-        { name: 'rm', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# remove files or directories' },
-        { name: 'cp', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# copy files' },
-        { name: 'mv', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# move files' },
-        { name: 'touch', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# create empty file' },
-        { name: 'echo', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# display a line of text' },
-        { name: 'clear', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# clear terminal screen' },
-        { name: 'whoami', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# print effective userid' },
-      ],
-    },
-    // Boot loader files
-    {
-      name: 'boot',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        { name: 'kernel', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: 'Aurora OS Kernel v0.5.2' },
-        { name: 'initrd', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: 'Initial ramdisk' },
-      ],
-    },
-    // System configuration files
-    {
-      name: 'etc',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        { name: 'passwd', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: 'root:x:0:0:root:/root:/bin/bash\nuser:x:1000:1000:User:/home/user:/bin/bash\nguest:x:1001:1001:Guest:/home/guest:/bin/bash' },
-        { name: 'group', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: 'root:x:0:\nusers:x:100:user,guest\nadmin:x:10:user' },
-        { name: 'hostname', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: 'aurora' },
-        { name: 'hosts', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: '127.0.0.1\tlocalhost\n::1\t\tlocalhost' },
-        { name: 'os-release', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: 'NAME="Aurora OS"\nVERSION="0.5.2"\nID=aurora\nPRETTY_NAME="Aurora OS.js"' },
-        {
-          name: 'apt',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [
-            { name: 'sources.list', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: '# Aurora package sources\ndeb https://packages.aurora.os/stable main' },
-          ],
-        },
-      ],
-    },
-    // User home directories
-    {
-      name: 'home',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        {
-          ...createUserHome('user'),
-          children: [
-            { name: 'Desktop', type: 'directory', children: [], owner: 'user', permissions: 'drwxr-xr-x' },
-            {
-              name: 'Documents',
-              type: 'directory',
-              owner: 'user',
-              permissions: 'drwxr-xr-x',
-              children: [
-                { name: 'README.txt', type: 'file', content: 'Welcome to Aurora OS!\n\nThis is your personal documents folder.', size: 60, owner: 'user', permissions: '-rw-r--r--' },
-                { name: 'Notes', type: 'directory', children: [], owner: 'user', permissions: 'drwxr-xr-x' },
-              ],
-            },
-            {
-              name: 'Downloads',
-              type: 'directory',
-              owner: 'user',
-              permissions: 'drwxr-xr-x',
-              children: [
-                { name: 'sample.pdf', type: 'file', content: '[PDF content placeholder]', size: 1024, owner: 'user', permissions: '-rw-r--r--' },
-              ],
-            },
-            { name: 'Pictures', type: 'directory', children: [{ name: 'Screenshots', type: 'directory', children: [], owner: 'user' }], owner: 'user', permissions: 'drwxr-xr-x' },
-            { name: 'Music', type: 'directory', children: [], owner: 'user', permissions: 'drwxr-xr-x' },
-            { name: 'Videos', type: 'directory', children: [], owner: 'user', permissions: 'drwxr-xr-x' },
-            { name: 'Config', type: 'directory', children: [], owner: 'user', permissions: 'drwxr-x---' },
-            { name: '.Trash', type: 'directory', children: [], owner: 'user', permissions: 'drwx------' },
-          ],
-        },
-        createUserHome('guest'),
-      ],
-    },
-    // Essential shared libraries
-    {
-      name: 'lib',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        { name: 'libc.so', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '# C standard library' },
-        { name: 'libm.so', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '# Math library' },
-      ],
-    },
-    // Root user home directory
-    {
-      name: 'root',
-      type: 'directory',
-      permissions: 'drwx------',
-      owner: 'root',
-      children: [
-        { name: 'Desktop', type: 'directory', children: [], owner: 'root', permissions: 'drwxr-xr-x' },
-        { name: 'Downloads', type: 'directory', children: [], owner: 'root', permissions: 'drwxr-xr-x' },
-        { name: 'Config', type: 'directory', children: [], owner: 'root', permissions: 'drwx------' },
-        { name: '.Trash', type: 'directory', children: [], owner: 'root', permissions: 'drwx------' },
-        { name: '.bashrc', type: 'file', content: '# Root bash configuration\nexport PS1="root@aurora# "', owner: 'root', permissions: '-rw-------' },
-      ],
-    },
-    // Kernel and system files
-    {
-      name: 'sys',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        {
-          name: 'kernel',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [
-            { name: 'version', type: 'file', permissions: '-r--r--r--', owner: 'root', content: '0.5.2-aurora' },
-          ],
-        },
-        {
-          name: 'devices',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [
-            { name: 'cpu', type: 'directory', children: [], permissions: 'drwxr-xr-x', owner: 'root' },
-            { name: 'memory', type: 'directory', children: [], permissions: 'drwxr-xr-x', owner: 'root' },
-          ],
-        },
-      ],
-    },
-    // User binaries and applications
-    {
-      name: 'usr',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        {
-          name: 'bin',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [
-            { name: 'nano', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# text editor' },
-            { name: 'vim', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# vi improved' },
-            { name: 'grep', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# search text patterns' },
-            { name: 'Finder', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!app finder' },
-            { name: 'Browser', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!app browser' },
-            { name: 'Mail', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!app messages' },
-            { name: 'Music', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!app music' },
-            { name: 'Photos', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!app photos' },
-            { name: 'Settings', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!app settings' },
-            { name: 'Terminal', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!app terminal' },
-            { name: 'find', type: 'file', permissions: '-rwxr-xr-x', owner: 'root', content: '#!/bin/bash\n# search for files' },
-          ],
-        },
-        {
-          name: 'lib',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [],
-        },
-        {
-          name: 'share',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [
-            {
-              name: 'applications',
-              type: 'directory',
-              permissions: 'drwxr-xr-x',
-              owner: 'root',
-              children: [
-                { name: 'Finder.desktop', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: '[Desktop Entry]\nName=Finder\nExec=finder\nType=Application' },
-                { name: 'Terminal.desktop', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: '[Desktop Entry]\nName=Terminal\nExec=terminal\nType=Application' },
-                { name: 'Settings.desktop', type: 'file', permissions: '-rw-r--r--', owner: 'root', content: '[Desktop Entry]\nName=Settings\nExec=settings\nType=Application' },
-              ],
-            },
-          ],
-        },
-      ],
-    },
-    // Variable data files
-    {
-      name: 'var',
-      type: 'directory',
-      permissions: 'drwxr-xr-x',
-      owner: 'root',
-      children: [
-        {
-          name: 'log',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [
-            { name: 'system.log', type: 'file', permissions: '-rw-r-----', owner: 'root', content: `[${new Date().toISOString()}] System initialized\n[${new Date().toISOString()}] Aurora OS started` },
-            { name: 'auth.log', type: 'file', permissions: '-rw-r-----', owner: 'root', content: '' },
-          ],
-        },
-        {
-          name: 'tmp',
-          type: 'directory',
-          permissions: 'drwxrwxrwt',
-          owner: 'root',
-          children: [],
-        },
-        {
-          name: 'cache',
-          type: 'directory',
-          permissions: 'drwxr-xr-x',
-          owner: 'root',
-          children: [],
-        },
-      ],
-    },
-  ],
-};
-
-const FileSystemContext = createContext<FileSystemContextType | undefined>(undefined);
 
 // Load filesystem from localStorage or return initial
 function loadFileSystem(): FileNode {
@@ -366,15 +60,21 @@ function saveFileSystem(fs: FileNode): void {
   }
 }
 
+const FileSystemContext = createContext<FileSystemContextType | undefined>(undefined);
+
 export function FileSystemProvider({ children }: { children: ReactNode }) {
   const [fileSystem, setFileSystem] = useState<FileNode>(() => loadFileSystem());
   const [currentUser] = useState('user'); // Default user - could be extended for login system
   const homePath = currentUser === 'root' ? '/root' : `/home/${currentUser}`;
   const [currentPath, setCurrentPath] = useState(homePath);
 
-  // Persist filesystem changes to localStorage
+  // Persist filesystem changes to localStorage (Debounced)
   useEffect(() => {
-    saveFileSystem(fileSystem);
+    const timeoutId = setTimeout(() => {
+      saveFileSystem(fileSystem);
+    }, 1000); // 1000ms debounce
+
+    return () => clearTimeout(timeoutId);
   }, [fileSystem]);
 
   // Resolve ~ and . and .. in paths
@@ -530,21 +230,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     return true;
   }, [getNodeAtPath, deleteNode, resolvePath]);
 
-  // Helper to find node and its parent by ID
-  const findNodeAndParent = useCallback((root: FileNode, targetId: string): { node: FileNode, parent: FileNode } | null => {
-    if (root.children) {
-      for (const child of root.children) {
-        if (child.id === targetId) {
-          return { node: child, parent: root };
-        }
-        if (child.type === 'directory') {
-          const result = findNodeAndParent(child, targetId);
-          if (result) return result;
-        }
-      }
-    }
-    return null;
-  }, []);
+
 
   const moveNodeById = useCallback((id: string, destParentPath: string): boolean => {
     // 1. Find the source node and its parent using ID
@@ -556,6 +242,18 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
 
     // 2. Validate destination
     if (!destParent || destParent.type !== 'directory' || !destParent.children) return false;
+
+    // Safety Checks: Prevent recursive moves
+    if (nodeToMove.id === destParent.id) {
+      toast.error('Operation blocked: Cannot move a directory into itself')
+      //console.warn('Operation blocked: Cannot move a directory into itself');
+      return false;
+    }
+    if (isDescendant(nodeToMove, destParent.id)) {
+      toast.error('Operation blocked: Cannot move a directory into its own descendant');
+      //console.warn('Operation blocked: Cannot move a directory into its own descendant');
+      return false;
+    }
 
     // 3. Collision Check: Don't overwrite existing name at destination
     if (destParent.children.some(child => child.name === nodeToMove.name)) {
@@ -603,6 +301,7 @@ export function FileSystemProvider({ children }: { children: ReactNode }) {
     });
 
     return true;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fileSystem, resolvePath, getNodeAtPath, findNodeAndParent]);
 
   const createFile = useCallback((path: string, name: string, content: string = ''): boolean => {

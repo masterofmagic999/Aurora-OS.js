@@ -1,5 +1,21 @@
 # Version History
 
+## v0.6.2-patch2
+- **Unified Desktop Aesthetics**: Removed unselected "pill" backgrounds from Desktop icons and aligned text truncation with Finder (single-line).
+- **Window Focus UX**: Enabled "Click to Focus" on window content while restricting drag operations to the title bar.
+- **Scroll Regressions**: Fixed scrolling issues in Settings, Photos, and Browser apps caused by template refactors.
+- **Performance**: Refactored File System logic into utilities and implemented debounced persistence to prevent UI stuttering.
+
+## v0.6.2-patch
+- **Build System Fix**: Restored CSS functionality by migrating to a standard Tailwind CSS v4 build pipeline with `@tailwindcss/postcss`.
+- **Desktop**: Now uses a grid system inspired by Windows 11. Icons are now cosistend across Desktop and Finder. Drag-and-move functionality.
+- **UI Restoration**: Fixed missing scrollbar styling and terminal colors.
+- **File System**: Now uses UID for every file and directory instead of name.
+- **Terminal**: Improved path resolution to handle absolute paths for user directories (e.g., `/Desktop` -> `~/Desktop`). Consistency with the icons in Finder.
+- **Finder**: Fixed issues with dropping files onto sidebar shortcuts. Items organized by name.
+- **System Settings**: Performance toggle for gradients across icons and other subtle places.
+- **Other**: Repository badges are now simplified.
+
 ## v0.6.2
 - **Settings Grid Layouts**: Standardized grids in Appearance, Theme Mode, and Theme sections with fixed aspect ratios (1:1 and 16:9) for consistent responsive design.
 - **Theme Enhancements**: Implemented dynamic gradients for Theme Mode cards (Neutral/Contrast) and introduced a diverse "2025" Color Palette.

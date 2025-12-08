@@ -124,8 +124,8 @@ function WindowComponent({
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-auto cursor-default" onMouseDown={(e) => e.stopPropagation()}>
-          {/* Stop propagation on content so dragging inside content doesn't move window (though dragHandleClassName handles this mostly) */}
+        {/* We allow propagation so checking clicks on content triggers Rnd's onMouseDown={onFocus} */}
+        <div className="flex-1 overflow-auto cursor-default">
           {window.content}
         </div>
       </div>

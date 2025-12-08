@@ -129,7 +129,7 @@ export function AppTemplate({
         )}
 
         {/* Content */}
-        <div className={cn("flex-1 overflow-y-auto", contentClassName)}>
+        <div className={cn("flex-1 flex flex-col min-h-0", contentClassName)}>
           {content}
         </div>
       </div>

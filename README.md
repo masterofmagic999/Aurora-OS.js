@@ -1,4 +1,4 @@
-# Aurora OS.js [![Version](https://img.shields.io/badge/Version-v0.6.2--patch-blue)](https://github.com/mental-os/Aurora-OS.js) [![Deploy Web OS](https://github.com/mental-os/Aurora-OS.js/actions/workflows/deploy.yml/badge.svg)](https://github.com/mental-os/Aurora-OS.js/actions/workflows/deploy.yml) [![Dependabot](https://github.com/mental-os/Aurora-OS.js/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/mental-os/Aurora-OS.js/actions/workflows/dependabot/dependabot-updates) [![Build](https://github.com/mental-os/Aurora-OS.js/actions/workflows/ci.yml/badge.svg)](https://github.com/mental-os/Aurora-OS.js/actions/workflows/ci.yml)
+# Aurora OS.js [![Version](https://img.shields.io/badge/Version-v0.6.2--patch-blue)](https://github.com/mental-os/Aurora-OS.js) [![GitHub Pages](https://github.com/mental-os/Aurora-OS.js/actions/workflows/deploy.yml/badge.svg)](https://github.com/mental-os/Aurora-OS.js/actions/workflows/deploy.yml) [![Dependabot](https://github.com/mental-os/Aurora-OS.js/actions/workflows/dependabot/dependabot-updates/badge.svg)](https://github.com/mental-os/Aurora-OS.js/actions/workflows/dependabot/dependabot-updates) [![Build](https://github.com/mental-os/Aurora-OS.js/actions/workflows/ci.yml/badge.svg)](https://github.com/mental-os/Aurora-OS.js/actions/workflows/ci.yml)
 
 A modern, web-based desktop operating system interface built with React, Tailwind CSS, and Radix UI.
 
@@ -56,15 +56,11 @@ npm test
 
 ## Release Notes
 
-## v0.6.2-patch
-- **Build System Fix**: Restored CSS functionality by migrating to a standard Tailwind CSS v4 build pipeline with `@tailwindcss/postcss`.
-- **Desktop**: Now uses a grid system inspired by Windows 11. Icons are now cosistend across Desktop and Finder. Drag-and-move functionality.
-- **UI Restoration**: Fixed missing scrollbar styling and terminal colors.
-- **File System**: Now uses UID for every file and directory instead of name.
-- **Terminal**: Improved path resolution to handle absolute paths for user directories (e.g., `/Desktop` -> `~/Desktop`). Consistency with the icons in Finder.
-- **Finder**: Fixed issues with dropping files onto sidebar shortcuts. Items organized by name.
-- **System Settings**: Performance toggle for gradients across icons and other subtle places.
-- **Other**: Repository badges are now simplified.
+## v0.6.2-patch2
+- **Unified Desktop Aesthetics**: Removed unselected "pill" backgrounds from Desktop icons and aligned text truncation with Finder (single-line).
+- **Window Focus UX**: Enabled "Click to Focus" on window content while restricting drag operations to the title bar.
+- **Scroll Regressions**: Fixed scrolling issues in Settings, Photos, and Browser apps caused by template refactors.
+- **Performance**: Refactored File System logic into utilities and implemented debounced persistence to prevent UI stuttering.
 
 [View full version history](HISTORY.md)
 

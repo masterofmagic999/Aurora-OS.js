@@ -72,6 +72,7 @@ export function Photos() {
       content={content}
       activeItem={appState.activeCategory}
       onItemClick={(id) => setAppState(s => ({ ...s, activeCategory: id }))}
+      contentClassName="overflow-y-auto"
     />
   );
 }

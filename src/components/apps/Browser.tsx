@@ -119,5 +119,5 @@ export function Browser() {
     </div>
   );
 
-  return <AppTemplate toolbar={tabBar} content={content} hasSidebar={false} />;
+  return <AppTemplate toolbar={tabBar} content={content} hasSidebar={false} contentClassName="overflow-y-auto" />;
 }

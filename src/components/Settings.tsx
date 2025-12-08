@@ -536,6 +536,7 @@ export function Settings() {
       content={content}
       activeItem={activeSection}
       onItemClick={setActiveSection}
+      contentClassName="overflow-y-auto"
     />
   );
 }

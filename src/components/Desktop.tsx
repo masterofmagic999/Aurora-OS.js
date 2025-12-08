@@ -3,6 +3,7 @@ import type { DesktopIcon } from '../App';
 import { useAppContext } from './AppContext';
 // import { lightenColor } from '../utils/colors';
 import { FileIcon } from './ui/FileIcon';
+import { useFileSystem } from './FileSystemContext';
 
 interface DesktopProps {
   onDoubleClick: () => void;
@@ -11,10 +12,13 @@ interface DesktopProps {
   onIconDoubleClick: (iconId: string) => void;
 }
 
-
+// Helper for hiding native drag ghost
+const emptyImage = new Image();
+emptyImage.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
 function DesktopComponent({ onDoubleClick, icons, onUpdateIconPosition, onIconDoubleClick }: DesktopProps) {
   const { accentColor, reduceMotion, disableShadows } = useAppContext();
+  const { moveNodeById } = useFileSystem();
 
   // Selection State
   const [selectedIcons, setSelectedIcons] = useState<Set<string>>(new Set());
@@ -41,86 +45,68 @@ function DesktopComponent({ onDoubleClick, icons, onUpdateIconPosition, onIconDo
     dragStateRef.current.dragStartPos = dragStartPos;
   }, [draggingIcons, dragStartPos]);
 
-  // Re-implement the effect with proper refs logic
-  useEffect(() => {
-    const handleGlobalMouseMove = (e: MouseEvent) => {
-      const { draggingIcons, dragStartPos } = dragStateRef.current;
+  // Handle Internal Drag Visuals via DragOver (Native DnD)
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
 
-      if (draggingIcons.length > 0 && dragStartPos) {
-        const deltaX = e.clientX - dragStartPos.x;
-        const deltaY = e.clientY - dragStartPos.y;
-        setDragDelta({ x: deltaX, y: deltaY });
+    const { draggingIcons, dragStartPos } = dragStateRef.current;
+
+    // If we are dragging internal icons, update the visual delta
+    // We use e.clientX/Y from the dragover event on the container
+    if (draggingIcons.length > 0 && dragStartPos) {
+      setDragDelta({
+        x: e.clientX - dragStartPos.x,
+        y: e.clientY - dragStartPos.y
+      });
+    }
+  };
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+
+    try {
+      const data = JSON.parse(e.dataTransfer.getData('application/json'));
+
+      // Case 1: Internal Drop (Desktop -> Desktop)
+      if (data.source === 'desktop') {
+        const { draggingIcons, dragStartPos } = dragStateRef.current;
+        if (draggingIcons.length > 0 && dragStartPos) {
+          const deltaX = e.clientX - dragStartPos.x;
+          const deltaY = e.clientY - dragStartPos.y;
+
+          draggingIcons.forEach(id => {
+            const icon = iconsRef.current.find(i => i.id === id);
+            if (icon) {
+              const newX = icon.position.x + deltaX;
+              let newY = icon.position.y + deltaY;
+              newY = Math.max(0, newY);
+              onUpdateIconPosition(id, { x: newX, y: newY });
+            }
+          });
+        }
       }
-
-      if (selectionBox) { // access selectionBox from state? It's in dep array so good.
-        setSelectionBox(prev => prev ? { ...prev, current: { x: e.clientX, y: e.clientY } } : null);
+      // Case 2: External Drop (Finder -> Desktop)
+      else if (data.id) {
+        moveNodeById(data.id, '~/Desktop');
       }
-    };
+    } catch (err) {
+      console.error('Failed to handle desktop drop', err);
+    }
 
-    const handleGlobalMouseUp = (e: MouseEvent) => {
-      const { draggingIcons, dragStartPos } = dragStateRef.current;
+    // Reset state
+    setDraggingIcons([]);
+    setDragStartPos(null);
+    setDragDelta({ x: 0, y: 0 });
+  };
 
-      if (draggingIcons.length > 0 && dragStartPos) {
-        const deltaX = e.clientX - dragStartPos.x;
-        const deltaY = e.clientY - dragStartPos.y;
-
-        // Commit changes
-        draggingIcons.forEach(id => {
-          const icon = iconsRef.current.find(i => i.id === id);
-          if (icon) {
-            const newX = icon.position.x + deltaX;
-            let newY = icon.position.y + deltaY;
-            newY = Math.max(0, newY);
-            onUpdateIconPosition(id, { x: newX, y: newY });
-          }
-        });
-
-        setDraggingIcons([]);
-        setDragStartPos(null);
-        setDragDelta({ x: 0, y: 0 });
-      }
-
-      if (selectionBox) {
-        // Selection logic (same as before)
-        // We need to access selectionBox state/ref. 
-        // Since selectionBox IS in dep array, this closure is fresh for it.
-        // ... (Logic copied from previous) ...
-        const boxRect = {
-          left: Math.min(selectionBox.start.x, selectionBox.current.x),
-          top: Math.min(selectionBox.start.y, selectionBox.current.y),
-          right: Math.max(selectionBox.start.x, selectionBox.current.x),
-          bottom: Math.max(selectionBox.start.y, selectionBox.current.y)
-        };
-
-        const newSelection = new Set(selectedIcons);
-
-        iconsRef.current.forEach(icon => {
-          const iconCenter = { x: icon.position.x + 50, y: icon.position.y + 50 };
-          if (
-            iconCenter.x >= boxRect.left &&
-            iconCenter.x <= boxRect.right &&
-            iconCenter.y >= boxRect.top &&
-            iconCenter.y <= boxRect.bottom
-          ) {
-            newSelection.add(icon.id);
-          }
-        });
-
-        setSelectedIcons(newSelection);
-        setSelectionBox(null);
-      }
-    };
-
-    window.addEventListener('mousemove', handleGlobalMouseMove);
-    window.addEventListener('mouseup', handleGlobalMouseUp);
-
-    return () => {
-      window.removeEventListener('mousemove', handleGlobalMouseMove);
-      window.removeEventListener('mouseup', handleGlobalMouseUp);
-    };
-  }, [selectionBox, selectedIcons, onUpdateIconPosition]);
-  // We include selectionBox/selectedIcons so it updates when they change. 
-  // Drag moves don't change these, so listener stays stable during drag!
+  const handleDragEnd = (_e: React.DragEvent) => {
+    // Fired on the source element when drag completes (success or cancel)
+    // This ensures we clean up if the drop happened outside or was cancelled
+    setDraggingIcons([]);
+    setDragStartPos(null);
+    setDragDelta({ x: 0, y: 0 });
+  };
 
   const handleDesktopMouseDown = (e: React.MouseEvent) => {
     // If clicking on background, clear selection unless Shift/Ctrl
@@ -135,17 +121,55 @@ function DesktopComponent({ onDoubleClick, icons, onUpdateIconPosition, onIconDo
     });
   };
 
-  const handleIconMouseDown = (e: React.MouseEvent, iconId: string) => {
-    e.stopPropagation(); // Prevent desktop selection box
+  // Selection Box Logic (Keep mouse events for selection box ONLY)
+  useEffect(() => {
+    const handleGlobalMouseMove = (e: MouseEvent) => {
+      if (selectionBox) {
+        setSelectionBox(prev => prev ? { ...prev, current: { x: e.clientX, y: e.clientY } } : null);
+      }
+    };
 
-    // Selection Logic
+    const handleGlobalMouseUp = (_e: MouseEvent) => {
+      if (selectionBox) {
+        // Selection Box Commit
+        const boxRect = {
+          left: Math.min(selectionBox.start.x, selectionBox.current.x),
+          top: Math.min(selectionBox.start.y, selectionBox.current.y),
+          right: Math.max(selectionBox.start.x, selectionBox.current.x),
+          bottom: Math.max(selectionBox.start.y, selectionBox.current.y)
+        };
+
+        const newSelection = new Set(selectedIcons);
+        iconsRef.current.forEach(icon => {
+          const iconCenter = { x: icon.position.x + 50, y: icon.position.y + 50 };
+          if (
+            iconCenter.x >= boxRect.left &&
+            iconCenter.x <= boxRect.right &&
+            iconCenter.y >= boxRect.top &&
+            iconCenter.y <= boxRect.bottom
+          ) {
+            newSelection.add(icon.id);
+          }
+        });
+        setSelectedIcons(newSelection);
+        setSelectionBox(null);
+      }
+    };
+
+    window.addEventListener('mousemove', handleGlobalMouseMove);
+    window.addEventListener('mouseup', handleGlobalMouseUp);
+    return () => {
+      window.removeEventListener('mousemove', handleGlobalMouseMove);
+      window.removeEventListener('mouseup', handleGlobalMouseUp);
+    };
+  }, [selectionBox, selectedIcons]);
+
+  const handleIconMouseDown = (e: React.MouseEvent, iconId: string) => {
+    e.stopPropagation();
     const newSelection = new Set(selectedIcons);
     if (e.ctrlKey || e.shiftKey) {
-      if (newSelection.has(iconId)) {
-        newSelection.delete(iconId);
-      } else {
-        newSelection.add(iconId);
-      }
+      if (newSelection.has(iconId)) newSelection.delete(iconId);
+      else newSelection.add(iconId);
     } else {
       if (!newSelection.has(iconId)) {
         newSelection.clear();
@@ -153,11 +177,31 @@ function DesktopComponent({ onDoubleClick, icons, onUpdateIconPosition, onIconDo
       }
     }
     setSelectedIcons(newSelection);
+  };
 
-    // Start Dragging
-    setDraggingIcons(Array.from(newSelection.has(iconId) ? newSelection : new Set([iconId])));
-    setDragStartPos({ x: e.clientX, y: e.clientY });
-    setDragDelta({ x: 0, y: 0 });
+  // --- Native Drag Support ---
+  const handleNativeDragStart = (e: React.DragEvent, icon: DesktopIcon) => {
+    // START DRAG
+    const { clientX, clientY } = e;
+    setDragStartPos({ x: clientX, y: clientY });
+
+    // Set Dragged Items
+    let itemsToDrag = Array.from(selectedIcons);
+    if (!itemsToDrag.includes(icon.id)) {
+      itemsToDrag = [icon.id];
+      setSelectedIcons(new Set([icon.id]));
+    }
+    setDraggingIcons(itemsToDrag);
+
+    // Set Native Data
+    e.dataTransfer.setDragImage(emptyImage, 0, 0);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('application/json', JSON.stringify({
+      id: icon.id,
+      name: icon.name,
+      type: icon.type === 'folder' ? 'directory' : 'file',
+      source: 'desktop'
+    }));
   };
 
   return (
@@ -165,14 +209,14 @@ function DesktopComponent({ onDoubleClick, icons, onUpdateIconPosition, onIconDo
       className="absolute inset-0 w-full h-full"
       onMouseDown={handleDesktopMouseDown}
       onDoubleClick={onDoubleClick}
+      onDragOver={handleDragOver}
+      onDrop={handleDrop}
       style={{
         background: 'linear-gradient(135deg, #1e293b 0%, #334155 50%, #1e293b 100%)',
       }}
     >
       {/* Subtle background pattern */}
-      <div className="absolute inset-0 opacity-5 pointer-events-none">
-
-      </div>
+      <div className="absolute inset-0 opacity-5 pointer-events-none" />
 
       {/* Selection Box */}
       {selectionBox && (
@@ -198,6 +242,9 @@ function DesktopComponent({ onDoubleClick, icons, onUpdateIconPosition, onIconDo
         return (
           <div
             key={icon.id}
+            draggable
+            onDragStart={(e) => handleNativeDragStart(e, icon)}
+            onDragEnd={handleDragEnd}
             className={`absolute flex flex-col items-center gap-1 p-2 rounded-lg cursor-pointer select-none 
             ${(!reduceMotion && !isDragging) ? 'transition-all duration-75' : ''} 
             ${selectedIcons.has(icon.id) ? 'bg-white/20 backdrop-blur-sm ring-1 ring-white/30' : 'hover:bg-white/5'}`}
@@ -224,16 +271,14 @@ function DesktopComponent({ onDoubleClick, icons, onUpdateIconPosition, onIconDo
             </div>
 
             <div className={`text-[11px] leading-tight text-white text-center px-2 py-0.5 rounded
-            ${selectedIcons.has(icon.id) ? 'bg-blue-600' : 'bg-black/20 backdrop-blur-sm'}
-            ${!disableShadows ? 'drop-shadow-md' : ''} truncate w-full`}>
+            ${!disableShadows ? 'drop-shadow-md text-shadow-sm' : ''} truncate w-full`}>
               {icon.name}
             </div>
           </div>
         );
       })}
-    </div >
+    </div>
   );
 }
-
 
 export const Desktop = memo(DesktopComponent);

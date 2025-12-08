@@ -1,7 +1,8 @@
 {
       "name": "aurora-os-js",
-      "version": "0.6.2-patch",
+      "version": "0.6.2-patch2",
       "private": true,
+      "type": "module",
       "dependencies": {
             "@radix-ui/react-accordion": "^1.2.3",
             "@radix-ui/react-alert-dialog": "^1.1.6",
