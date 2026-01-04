@@ -1,0 +1,464 @@
+import { AppTemplate } from './AppTemplate';
+import { Inbox, Trash2, Archive, Star, Search, Reply, Forward } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { useAppContext } from '../AppContext';
+import { useSessionStorage } from '../../hooks/useSessionStorage';
+import { useElementSize } from '../../hooks/useElementSize';
+import { cn } from '../ui/utils';
+import { GlassInput } from '../ui/GlassInput';
+import { GlassButton } from '../ui/GlassButton';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+
+export interface Email {
+  id: string;
+  from: string;
+  fromEmail: string;
+  subject: string;
+  body: string; // Markdown content
+  timestamp: Date;
+  read: boolean;
+  starred: boolean;
+  archived: boolean;
+  deleted: boolean;
+}
+
+const mailSidebar = {
+  sections: [
+    {
+      title: 'Mailboxes',
+      items: [
+        { id: 'inbox', label: 'Inbox', icon: Inbox, badge: '4' },
+        { id: 'starred', label: 'Starred', icon: Star },
+        { id: 'archived', label: 'Archived', icon: Archive },
+        { id: 'trash', label: 'Trash', icon: Trash2 },
+      ],
+    },
+  ],
+};
+
+const mockEmails: Email[] = [
+  {
+    id: '1',
+    from: 'Sarah Chen',
+    fromEmail: 'sarah.chen@company.com',
+    subject: 'Q4 Project Update - Review Required',
+    body: `Hi there,
+
+I hope this email finds you well. I wanted to share the **latest updates** on our Q4 project timeline.
+
+Key highlights:
+
+- **Phase 1:** Completed ahead of schedule
+- *Phase 2:* Currently in progress, 75% done
+- **Phase 3:** Scheduled to start next week
+
+Please review the attached documents and let me know if you have any concerns. We need your approval by **Friday EOD**.
+
+Best regards,
+Sarah`,
+    timestamp: new Date('2024-01-04T10:30:00'),
+    read: false,
+    starred: true,
+    archived: false,
+    deleted: false,
+  },
+  {
+    id: '2',
+    from: 'DevOps Team',
+    fromEmail: 'devops@internal.system',
+    subject: 'System Maintenance Scheduled - Tomorrow 2AM',
+    body: `Dear Team,
+
+This is an automated notification regarding scheduled system maintenance.
+
+**Maintenance Window:**
+
+- **Date:** January 5, 2024
+- **Time:** 2:00 AM - 4:00 AM EST
+- *Expected Downtime:* Approximately 2 hours
+
+During this time, the following services will be **unavailable**:
+
+- Authentication servers
+- Database clusters
+- API endpoints
+
+Please plan accordingly. *All services will be restored by 4:00 AM.*
+
+Thank you for your patience.`,
+    timestamp: new Date('2024-01-04T09:15:00'),
+    read: true,
+    starred: false,
+    archived: false,
+    deleted: false,
+  },
+  {
+    id: '3',
+    from: 'Michael Rodriguez',
+    fromEmail: 'mike.r@external.com',
+    subject: 'Re: Collaboration Opportunity',
+    body: `Hi,
+
+Thank you for reaching out! I'm *very interested* in exploring this collaboration opportunity.
+
+I've reviewed your proposal and I think it aligns perfectly with our current goals. Here are my thoughts:
+
+1. **Timeline:** The proposed 6-month timeline seems reasonable
+2. **Budget:** We might need to discuss adjustments for Q2
+3. *Resources:* I can commit 2 senior developers and 1 designer
+
+Would you be available for a call next week to discuss the details? I'm free on **Tuesday afternoon** or **Thursday morning**.
+
+Looking forward to working together!
+
+Best,
+Michael`,
+    timestamp: new Date('2024-01-03T16:45:00'),
+    read: true,
+    starred: true,
+    archived: false,
+    deleted: false,
+  },
+  {
+    id: '4',
+    from: 'Newsletter Team',
+    fromEmail: 'newsletter@tech-weekly.com',
+    subject: 'Your Weekly Tech Digest - January Edition',
+    body: `Hello Tech Enthusiast!
+
+Welcome to this week's edition of **Tech Weekly Digest**.
+
+**📱 Top Stories This Week:**
+
+- **AI Breakthrough:** New model achieves 99% accuracy in medical diagnosis
+- *Quantum Computing:* Major advancement in error correction announced
+- **Web Development:** React 19 beta released with exciting new features
+- Cybersecurity alert: Critical vulnerability patched in popular framework
+
+*Featured Article:*
+
+**"The Future of Remote Work"** - An in-depth analysis of how workplace dynamics are evolving in 2024. Companies are adopting *hybrid models* at an unprecedented rate.
+
+Click below to read the full newsletter on our website.
+
+Happy reading! 📚`,
+    timestamp: new Date('2024-01-02T08:00:00'),
+    read: false,
+    starred: false,
+    archived: false,
+    deleted: false,
+  },
+];
+
+export function Mail({ owner }: { owner?: string }) {
+  const [activeMailbox, setActiveMailbox] = useSessionStorage('mail-active-mailbox', 'inbox', owner);
+  const [selectedEmailId, setSelectedEmailId] = useState<string | null>(mockEmails[0].id);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [emails, setEmails] = useState<Email[]>(mockEmails);
+  const { accentColor } = useAppContext();
+
+  // Filter emails based on active mailbox
+  const filteredEmails = useMemo(() => {
+    let filtered = emails;
+
+    // Filter by mailbox
+    if (activeMailbox === 'inbox') {
+      filtered = filtered.filter(e => !e.deleted && !e.archived);
+    } else if (activeMailbox === 'starred') {
+      filtered = filtered.filter(e => e.starred && !e.deleted);
+    } else if (activeMailbox === 'archived') {
+      filtered = filtered.filter(e => e.archived && !e.deleted);
+    } else if (activeMailbox === 'trash') {
+      filtered = filtered.filter(e => e.deleted);
+    }
+
+    // Filter by search query
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase();
+      filtered = filtered.filter(
+        e =>
+          e.from.toLowerCase().includes(query) ||
+          e.subject.toLowerCase().includes(query) ||
+          e.body.toLowerCase().includes(query)
+      );
+    }
+
+    // Sort by timestamp (newest first)
+    return filtered.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime());
+  }, [emails, activeMailbox, searchQuery]);
+
+  const selectedEmail = selectedEmailId ? emails.find(e => e.id === selectedEmailId) : null;
+
+  const unreadCount = emails.filter(e => !e.read && !e.deleted && !e.archived).length;
+  const updatedSidebar = {
+    ...mailSidebar,
+    sections: mailSidebar.sections.map(section => ({
+      ...section,
+      items: section.items.map(item =>
+        item.id === 'inbox' ? { ...item, badge: unreadCount > 0 ? unreadCount.toString() : undefined } : item
+      ),
+    })),
+  };
+
+  const handleSelectEmail = (emailId: string) => {
+    setSelectedEmailId(emailId);
+    setEmails(prev =>
+      prev.map(e => (e.id === emailId && !e.read ? { ...e, read: true } : e))
+    );
+  };
+
+  const handleToggleStar = (emailId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEmails(prev =>
+      prev.map(email => (email.id === emailId ? { ...email, starred: !email.starred } : email))
+    );
+  };
+
+  const handleDelete = () => {
+    if (!selectedEmailId) return;
+    setEmails(prev =>
+      prev.map(e => (e.id === selectedEmailId ? { ...e, deleted: true } : e))
+    );
+    setSelectedEmailId(filteredEmails[0]?.id || null);
+  };
+
+  const handleArchive = () => {
+    if (!selectedEmailId) return;
+    setEmails(prev =>
+      prev.map(e => (e.id === selectedEmailId ? { ...e, archived: !e.archived } : e))
+    );
+  };
+
+  const formatTime = (date: Date) => {
+    const now = new Date();
+    const diffMs = now.getTime() - date.getTime();
+    const diffMins = Math.floor(diffMs / 60000);
+    const diffHours = Math.floor(diffMs / 3600000);
+    const diffDays = Math.floor(diffMs / 86400000);
+
+    if (diffMins < 60) return `${diffMins}m ago`;
+    if (diffHours < 24) return `${diffHours}h ago`;
+    if (diffDays === 0) return 'Today';
+    if (diffDays === 1) return 'Yesterday';
+    if (diffDays < 7) return `${diffDays}d ago`;
+    return date.toLocaleDateString();
+  };
+
+  // Responsive container measurement
+  const [containerRef, { width }] = useElementSize();
+  const showSidebar = width >= 450;
+
+  const content = ({ contentWidth }: { contentWidth: number }) => {
+    const isCompact = contentWidth < 400;
+    const emailListWidth = isCompact ? 80 : Math.min(360, Math.floor(contentWidth * 0.35));
+
+    return (
+      <div className="flex h-full min-w-0">
+        {/* Email List */}
+        <div
+          className="border-r border-white/10 overflow-y-auto flex flex-col shrink-0"
+          style={{ width: `${emailListWidth}px` }}
+        >
+          {/* Search Bar */}
+          <div className={cn("p-2", isCompact && "flex justify-center")}>
+            {!isCompact ? (
+              <GlassInput
+                placeholder="Search emails..."
+                icon={<Search className="w-4 h-4" />}
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="bg-black/20"
+              />
+            ) : (
+              <button className="w-10 h-10 rounded-full bg-white/5 flex items-center justify-center text-white/60 hover:text-white hover:bg-white/10 transition-colors">
+                <Search className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+
+          {/* Email List Items */}
+          <div className="space-y-1 px-1 flex-1">
+            {filteredEmails.length === 0 ? (
+              <div className="text-center text-white/40 text-sm py-8">
+                {searchQuery ? 'No emails found' : 'No emails'}
+              </div>
+            ) : (
+              filteredEmails.map(email => (
+                <button
+                  key={email.id}
+                  onClick={() => handleSelectEmail(email.id)}
+                  className={cn(
+                    'w-full flex items-start gap-2 p-3 rounded-lg transition-colors text-left',
+                    selectedEmailId === email.id ? 'bg-white/10' : 'hover:bg-white/5',
+                    isCompact && 'justify-center px-2'
+                  )}
+                  title={isCompact ? email.subject : undefined}
+                >
+                  <button
+                    onClick={(e) => handleToggleStar(email.id, e)}
+                    className="mt-1 shrink-0"
+                  >
+                    <Star
+                      className={cn(
+                        'w-4 h-4 transition-colors',
+                        email.starred ? 'fill-yellow-400 text-yellow-400' : 'text-white/30 hover:text-white/60'
+                      )}
+                    />
+                  </button>
+
+                  {!isCompact && (
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-start justify-between gap-2">
+                        <span
+                          className={cn(
+                            'text-sm truncate',
+                            email.read ? 'text-white/70' : 'text-white font-semibold'
+                          )}
+                        >
+                          {email.from}
+                        </span>
+                        <span className="text-xs text-white/40 shrink-0">{formatTime(email.timestamp)}</span>
+                      </div>
+                      <div
+                        className={cn(
+                          'text-sm truncate',
+                          email.read ? 'text-white/50' : 'text-white/80 font-medium'
+                        )}
+                      >
+                        {email.subject}
+                      </div>
+                      <div className="text-xs text-white/40 truncate">
+                        {email.body.replace(/<[^>]*>/g, '').substring(0, 60)}...
+                      </div>
+                    </div>
+                  )}
+
+                  {isCompact && !email.read && (
+                    <div
+                      className="w-2 h-2 rounded-full shrink-0 mt-1"
+                      style={{ backgroundColor: accentColor }}
+                    />
+                  )}
+                </button>
+              ))
+            )}
+          </div>
+        </div>
+
+        {/* Email Viewer */}
+        <div className="flex-1 flex flex-col min-w-0">
+          {selectedEmail ? (
+            <>
+              {/* Email Header */}
+              <div className="border-b border-white/10 p-4 shrink-0 bg-white/5 backdrop-blur-md">
+                <div className="flex items-start justify-between gap-4 mb-3">
+                  <div className="flex-1 min-w-0">
+                    <h2 className="text-white font-semibold text-lg mb-1 break-words">{selectedEmail.subject}</h2>
+                    <div className="text-sm text-white/70">
+                      <span className="font-medium">{selectedEmail.from}</span>
+                      <span className="text-white/40"> &lt;{selectedEmail.fromEmail}&gt;</span>
+                    </div>
+                    <div className="text-xs text-white/40 mt-1">
+                      {selectedEmail.timestamp.toLocaleString()}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => handleToggleStar(selectedEmail.id, {} as React.MouseEvent)}
+                    className="shrink-0"
+                  >
+                    <Star
+                      className={cn(
+                        'w-5 h-5 transition-colors',
+                        selectedEmail.starred
+                          ? 'fill-yellow-400 text-yellow-400'
+                          : 'text-white/30 hover:text-white/60'
+                      )}
+                    />
+                  </button>
+                </div>
+
+                {/* Action Buttons */}
+                <div className="flex gap-2 flex-wrap">
+                  <GlassButton size="sm" className="gap-2">
+                    <Reply className="w-4 h-4" />
+                    Reply
+                  </GlassButton>
+                  <GlassButton size="sm" className="gap-2">
+                    <Forward className="w-4 h-4" />
+                    Forward
+                  </GlassButton>
+                  <GlassButton size="sm" onClick={handleArchive} className="gap-2">
+                    <Archive className="w-4 h-4" />
+                    {selectedEmail.archived ? 'Unarchive' : 'Archive'}
+                  </GlassButton>
+                  <GlassButton size="sm" onClick={handleDelete} className="gap-2">
+                    <Trash2 className="w-4 h-4" />
+                    Delete
+                  </GlassButton>
+                </div>
+              </div>
+
+              {/* Email Body */}
+              <div className="flex-1 overflow-y-auto p-6 text-sm text-white/90 prose prose-invert max-w-none">
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => <p className="mb-5 last:mb-0">{children}</p>,
+                    ul: ({ children }) => <ul className="my-5 pl-6 space-y-3">{children}</ul>,
+                    ol: ({ children }) => <ol className="my-5 pl-6 space-y-3">{children}</ol>,
+                    li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                    strong: ({ children }) => <strong className="font-semibold text-white/95">{children}</strong>,
+                    em: ({ children }) => <em className="italic text-white/85">{children}</em>,
+                    h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 text-white">{children}</h1>,
+                    h2: ({ children }) => <h2 className="text-xl font-bold mb-3 text-white">{children}</h2>,
+                    h3: ({ children }) => <h3 className="text-lg font-semibold mb-2 text-white">{children}</h3>,
+                  }}
+                >
+                  {selectedEmail.body}
+                </ReactMarkdown>
+              </div>
+            </>
+          ) : (
+            <div className="flex-1 flex items-center justify-center">
+              <div className="text-center text-white/40">
+                <Inbox className="w-16 h-16 mx-auto mb-4 opacity-50" />
+                <p>Select an email to read</p>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div ref={containerRef} className="h-full w-full">
+      <AppTemplate
+        sidebar={updatedSidebar}
+        content={content}
+        hasSidebar={showSidebar}
+        activeItem={activeMailbox}
+        onItemClick={(id) => setActiveMailbox(id)}
+        minContentWidth={0}
+      />
+    </div>
+  );
+}
+
+import { AppMenuConfig } from '@/types.ts';
+
+export const mailMenuConfig: AppMenuConfig = {
+  menus: ['File', 'Edit', 'View', 'Mailbox', 'Window', 'Help'],
+  items: {
+    'Mailbox': [
+      { label: 'New Message', shortcut: '⌘N', action: 'new-message' },
+      { type: 'separator' },
+      { label: 'Reply', shortcut: '⌘R', action: 'reply' },
+      { label: 'Forward', shortcut: '⌘F', action: 'forward' },
+      { type: 'separator' },
+      { label: 'Archive', action: 'archive' },
+      { label: 'Delete', shortcut: '⌘⌫', action: 'delete' },
+    ],
+  },
+};
