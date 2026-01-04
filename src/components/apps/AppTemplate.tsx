@@ -71,7 +71,7 @@ export function AppTemplate({
   return (
     <div
       ref={containerRef}
-      className={cn("flex flex-col h-full", className)}
+      className={cn("flex flex-col h-full select-none", className)}
       style={{ background: windowBackground, ...blurStyle }}
     >
       {/* Toolbar */}
