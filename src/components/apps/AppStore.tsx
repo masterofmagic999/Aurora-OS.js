@@ -202,7 +202,7 @@ export function AppStore({ owner }: AppStoreProps) {
                                         
                                         {/* Metadata (Size) */}
                                         <p className="text-white/30 text-[10px] uppercase tracking-wider font-mono mb-4">
-                                            Size: {app.size ? `${app.size} MB` : 'Unknown'}
+                                            {t('appStore.size')}: {app.size ? `${app.size} MB` : 'Unknown'}
                                         </p>
 
                                         {/* Install/Uninstall/Progress Button */}
