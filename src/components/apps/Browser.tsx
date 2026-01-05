@@ -71,7 +71,7 @@ export function Browser({ owner }: { owner?: string }) {
 
   // Navigation controls
   const canGoBack = historyIndex > 0;
-  const canGoForward = historyIndex < historyRef.current.length - 1;
+  const canGoForward = historyIndex < appState.history.length - 1;
 
   const goBack = () => {
     if (canGoBack) {

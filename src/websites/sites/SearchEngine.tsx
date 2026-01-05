@@ -11,10 +11,14 @@ import { searchWebsites } from '../registry';
 export function SearchEngine({ onNavigate, params }: WebsiteProps) {
   const query = params?.q || '';
 
-  // Search results
   const searchResults = useMemo(() => {
     if (!query.trim()) return [];
     return searchWebsites(query);
+  }, [query]);
+
+  const responseTime = useMemo(() => {
+    const hash = query.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    return (hash % 9) + 1;
   }, [query]);
 
   // Get security icon
@@ -110,7 +114,7 @@ export function SearchEngine({ onNavigate, params }: WebsiteProps) {
           <>
             {/* Stats */}
             <div className="text-sm text-gray-600 mb-6">
-              About {searchResults.length} results (0.{Math.floor(Math.random() * 9) + 1} seconds)
+              About {searchResults.length} results (0.{responseTime} seconds)
             </div>
 
             {/* Search Results */}
