@@ -368,7 +368,7 @@ export function Onboarding({ onContinue }: OnboardingProps) {
                     </CardContent>
 
                     {step !== 'finishing' && (
-                        <CardFooter className="flex justify-between border-t border-white/5 pt-6 p-6">
+                        <CardFooter className="flex justify-between border-t border-white/5 pt-6 p-6 relative z-50">
                             {step === "language" ? (
                                 <div /> // Spacer
                             ) : (
@@ -382,13 +382,19 @@ export function Onboarding({ onContinue }: OnboardingProps) {
                             )}
 
                             {step === "language" && (
-                                <GlassButton onClick={handleLanguageNext} className="group">
+                                <GlassButton 
+                                    type="button"
+                                    onClick={handleLanguageNext} 
+                                    className="group relative z-50 pointer-events-auto"
+                                    data-testid="onboarding-next-language"
+                                >
                                     {t('onboarding.buttons.next')} <ChevronRight className="w-4 h-4 ml-2 group-hover:translate-x-0.5 transition-transform" />
                                 </GlassButton>
                             )}
                             
                             {step === "account" && (
                                 <GlassButton 
+                                    type="button"
                                     onClick={handleAccountNext} 
                                     disabled={isCreatingUser}
                                     className="min-w-[100px]"
@@ -398,7 +404,12 @@ export function Onboarding({ onContinue }: OnboardingProps) {
                             )}
 
                             {step === "theme" && (
-                                <GlassButton onClick={handleThemeNext} style={{ backgroundColor: previewAccent }} className="px-6 shadow-lg shadow-black/20 hover:shadow-black/40">
+                                <GlassButton 
+                                    type="button" 
+                                    onClick={handleThemeNext} 
+                                    style={{ backgroundColor: previewAccent }} 
+                                    className="px-6 shadow-lg shadow-black/20 hover:shadow-black/40"
+                                >
                                     {t('onboarding.buttons.startUsing')}
                                 </GlassButton>
                             )}

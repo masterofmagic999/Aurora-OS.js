@@ -130,7 +130,7 @@ export function GameScreenLayout({ children, footerActions, className = "", zInd
             </div>
 
             {/* Unified Footer */}
-            <div className="relative z-20 pb-6 text-center flex flex-col gap-2 items-center">
+            <div className="relative z-10 pb-6 text-center flex flex-col gap-2 items-center">
                 <div className="flex items-center gap-2 text-xs font-mono">
                     <span className="text-white/10">•</span>
                     {validateIntegrity() ? (
