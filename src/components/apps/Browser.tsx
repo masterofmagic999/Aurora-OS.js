@@ -1,5 +1,5 @@
-import { useState, useEffect, useRef } from 'react';
-import { ChevronLeft, ChevronRight, RotateCw, Home, Star, Lock, AlertTriangle, X, Plus, Book, Bookmark, Globe } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ChevronLeft, ChevronRight, RotateCw, Home, Star, Lock, AlertTriangle, X, Plus, Globe } from 'lucide-react';
 import { AppTemplate } from './AppTemplate';
 import { useAppStorage } from '../../hooks/useAppStorage';
 import { cn } from '../ui/utils';
@@ -9,8 +9,8 @@ import type { HistoryEntry } from '../websites/types';
 
 interface Tab {
   id: string;
-  url: string;        // The target URL (what's in the bar)
-  renderedUrl: string; // The loaded URL (what's on screen)
+  url: string;
+  renderedUrl: string;
   title: string;
   isLoading: boolean;
   progress: number;
@@ -18,19 +18,38 @@ interface Tab {
   historyIndex: number;
 }
 
+// Fallback tab to prevent crashes if state is empty
+const FALLBACK_TAB: Tab = {
+  id: 'fallback',
+  url: 'browser://welcome',
+  renderedUrl: 'browser://welcome',
+  title: 'Welcome',
+  isLoading: false,
+  progress: 0,
+  history: [{ url: 'browser://welcome', title: 'Welcome', timestamp: new Date() }],
+  historyIndex: 0
+};
+
 export function Browser({ owner }: { owner?: string }) {
   const { t } = useI18n();
 
   // Persisted state
   const [appState, setAppState] = useAppStorage('browser', {
     url: 'browser://welcome',
-    bookmarks: [] as string[], // Store URLs of bookmarked pages
+    bookmarks: [] as string[],
     history: [] as HistoryEntry[],
   }, owner);
 
   // Tabs State
   const [tabs, setTabs] = useState<Tab[]>(() => {
     const initialUrl = appState.url || 'browser://welcome';
+    
+    const sanitizedHistory = (appState.history || []).map(h => ({
+      ...h,
+      timestamp: new Date(h.timestamp)
+    }));
+
+    // Ensure we always start with at least one tab
     return [{
       id: 'default',
       url: initialUrl,
@@ -38,36 +57,42 @@ export function Browser({ owner }: { owner?: string }) {
       title: 'Welcome',
       isLoading: false,
       progress: 0,
-      // Ensure history is never empty to prevent index errors
-      history: appState.history?.length ? appState.history : [{ url: initialUrl, title: 'Welcome', timestamp: new Date() }],
-      historyIndex: (appState.history?.length || 1) - 1
+      history: sanitizedHistory.length ? sanitizedHistory : [{ url: initialUrl, title: 'Welcome', timestamp: new Date() }],
+      historyIndex: (sanitizedHistory.length || 1) - 1
     }];
   });
 
   const [activeTabId, setActiveTabId] = useState<string>('default');
   
-  // Safe active tab derivation
-  const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0];
+  // FIX: Safe access to activeTab with fallback
+  const activeTab = tabs.find(t => t.id === activeTabId) || tabs[0] || FALLBACK_TAB;
   
-  // Local state for the input to allow typing without jitter
-  const [urlInput, setUrlInput] = useState(activeTab.url);
+  // FIX: Ensure activeTab is defined before accessing .url
+  const [urlInput, setUrlInput] = useState(activeTab ? activeTab.url : 'browser://welcome');
 
   // Sync Input when Active Tab switches
-  const prevTabIdRef = useRef(activeTabId);
-  if (prevTabIdRef.current !== activeTabId) {
+  // We use state instead of ref to track changes during render safely.
+  // This pattern updates state during render to avoid input flicker.
+  const [prevTabId, setPrevTabId] = useState(activeTabId);
+  if (prevTabId !== activeTabId) {
+    setPrevTabId(activeTabId);
     setUrlInput(activeTab.url);
-    prevTabIdRef.current = activeTabId;
   }
 
-  // Persist current tab state
+  // Destructure properties needed for persistence to avoid depending on the entire 'activeTab' object.
+  // This prevents the effect from running on every progress tick (which creates a new activeTab object).
+  const { id: currentTabId, renderedUrl: currentRenderedUrl, history: currentHistory } = activeTab;
+
+  // Persist current tab state and HISTORY
   useEffect(() => {
-    if (activeTab) {
+    if (currentTabId !== 'fallback') {
       setAppState(prev => ({
         ...prev,
-        url: activeTab.renderedUrl,
+        url: currentRenderedUrl,
+        history: currentHistory
       }));
     }
-  }, [activeTab?.renderedUrl, setAppState]);
+  }, [currentTabId, currentRenderedUrl, currentHistory, setAppState]);
 
   const getActiveWebsite = () => {
     if (!activeTab) return null;
@@ -76,7 +101,19 @@ export function Browser({ owner }: { owner?: string }) {
   };
 
   const currentWebsite = getActiveWebsite();
+  const WebsiteComponent = currentWebsite?.component;
   const isBookmarked = appState.bookmarks.includes(activeTab.renderedUrl);
+
+  const getParams = () => {
+    const [, queryString] = activeTab.renderedUrl.split('?');
+    const params: Record<string, string> = {};
+    if (queryString) {
+      new URLSearchParams(queryString).forEach((value, key) => {
+        params[key] = value;
+      });
+    }
+    return params;
+  };
 
   // --- Bookmark Logic ---
   const toggleBookmark = () => {
@@ -94,7 +131,7 @@ export function Browser({ owner }: { owner?: string }) {
   // --- Tab Management ---
   const addTab = () => {
     const newTab: Tab = {
-      id: Date.now().toString(),
+      id: crypto.randomUUID(),
       url: 'browser://welcome',
       renderedUrl: 'browser://welcome',
       title: 'New Tab',
@@ -119,9 +156,13 @@ export function Browser({ owner }: { owner?: string }) {
     setTabs(newTabs);
     
     if (tabId === activeTabId) {
-      const nextTab = newTabs[newTabs.length - 1];
-      setActiveTabId(nextTab.id);
-      setUrlInput(nextTab.url);
+      const index = tabs.findIndex(t => t.id === tabId);
+      const nextTab = newTabs[index - 1] || newTabs[0];
+      
+      if (nextTab) {
+        setActiveTabId(nextTab.id);
+        setUrlInput(nextTab.url);
+      }
     }
   };
 
@@ -183,7 +224,7 @@ export function Browser({ owner }: { owner?: string }) {
         renderedUrl: url,
         title: website?.name || url,
         history: [...cleanHistory, newEntry],
-        historyIndex: cleanHistory.length // Point to the new last item
+        historyIndex: cleanHistory.length
       };
     }));
   };
@@ -249,7 +290,7 @@ export function Browser({ owner }: { owner?: string }) {
     return {
       title: website?.name || url,
       url: url,
-      icon: website?.icon || Globe // Fallback icon
+      //icon: website?.icon || Globe        // Fallback icon, for future, when/if we decide to add icons for the sites
     };
   };
 
@@ -378,11 +419,11 @@ export function Browser({ owner }: { owner?: string }) {
 
       {/* Website Content */}
       <div className="flex-1 overflow-y-auto relative bg-white h-full">
-        {currentWebsite ? (
-          <currentWebsite.component
+        {currentWebsite && WebsiteComponent ? (
+          <WebsiteComponent
             domain={currentWebsite.domain}
             onNavigate={navigate}
-            params={{}} 
+            params={getParams()} 
             owner={owner}
           />
         ) : (
