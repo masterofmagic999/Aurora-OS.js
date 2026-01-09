@@ -43,9 +43,15 @@ const stripHtml = (text: string) => {
   if (!text) return "";
 
   // 1. Remove script and style tags and their contents entirely
-  let result = text
-    .replace(/<script\b[^>]*>([\s\S]*?)<\/script>/gim, "")
-    .replace(/<style\b[^>]*>([\s\S]*?)<\/style>/gim, "");
+  // Recursive check to handle nested or obfuscated tags (satisfies CodeQL "Incomplete multi-character sanitization")
+  let result = text;
+  let previous;
+  do {
+    previous = result;
+    result = result
+      .replace(/<script\b[^>]*>([\s\S]*?)<\/script\s*>/gim, "")
+      .replace(/<style\b[^>]*>([\s\S]*?)<\/style\s*>/gim, "");
+  } while (result !== previous);
 
   // 2. Remove common Markdown syntax for a better text preview
   result = result
@@ -61,20 +67,23 @@ const stripHtml = (text: string) => {
 
   // 3. Robust recursive HTML tag removal to handle nested tags
   // This satisfies CodeQL's "Incomplete multi-character sanitization" alert.
-  let previous;
   do {
     previous = result;
     result = result.replace(/<[^>]*>?/gm, '');
   } while (result !== previous);
 
   // 4. Decode common HTML entities for a cleaner preview
-  result = result
-    .replace(/&nbsp;/g, " ")
-    .replace(/&amp;/g, "&")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;/g, "'");
+  // Using a single-pass replacement map to avoid "Double escaping or unescaping" alerts
+  const entities: Record<string, string> = {
+    '&nbsp;': ' ',
+    '&amp;': '&',
+    '&lt;': '<',
+    '&gt;': '>',
+    '&quot;': '"',
+    '&#39;': "'"
+  };
+
+  result = result.replace(/&(nbsp|amp|lt|gt|quot|#39);/g, (match) => entities[match] || match);
 
   return result.trim();
 };
