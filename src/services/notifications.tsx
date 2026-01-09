@@ -15,7 +15,7 @@ let addNotificationToCenter: ((notification: {
     time: string;
     color: string;
     appType?: string;
-    appData?: any;
+    appData?: Record<string, unknown>;
 }) => void) | null = null;
 
 // Function to register the notification center
@@ -31,7 +31,7 @@ const typeToColor: Record<NotificationType, string> = {
 };
 
 export const notify = {
-    system: (type: NotificationType, source: string, message: string, options?: { appType?: string; appData?: any }) => {
+    system: (type: NotificationType, source: string, message: string, options?: { appType?: string; appData?: Record<string, unknown> }) => {
         // Play sound
         soundManager.play(type);
 

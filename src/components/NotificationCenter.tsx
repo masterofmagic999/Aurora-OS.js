@@ -8,7 +8,7 @@ import { useI18n } from '../i18n/index';
 import { useNotifications } from '../contexts/NotificationContext';
 
 interface NotificationCenterProps {
-  onOpenApp?: (type: string, data?: any, owner?: string) => void;
+  onOpenApp?: (type: string, data?: Record<string, unknown>, owner?: string) => void;
 }
 
 export function NotificationCenter({ onOpenApp }: NotificationCenterProps) {
@@ -122,7 +122,7 @@ export function NotificationCenter({ onOpenApp }: NotificationCenterProps) {
                   className="p-4 border-b border-white/5 hover:bg-white/5 transition-colors cursor-pointer"
                   initial={{ opacity: 0, x: reduceMotion ? 0 : 20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: reduceMotion ? 0 : index * 0.05 }}
+                  transition={{ delay: reduceMotion ? 0 : Math.min(index * 0.05, 0.3) }}
                   onClick={() => handleNotificationClick(notification)}
                 >
                   <div className="flex gap-3">

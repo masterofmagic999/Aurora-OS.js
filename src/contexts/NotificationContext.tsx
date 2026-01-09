@@ -10,7 +10,7 @@ export interface Notification {
   time: string;
   color: string;
   appType?: string; // The app this notification originated from
-  appData?: any; // Optional data to pass when opening the app
+  appData?: Record<string, unknown>; // Optional data to pass when opening the app
   timestamp: number;
 }
 
