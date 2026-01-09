@@ -394,7 +394,7 @@ function MenuBarComponent({ focusedApp, onOpenApp }: MenuBarProps) {
           <Wifi className="w-4 h-4" />
         </button>
         <AudioApplet />
-        <NotificationCenter />
+        <NotificationCenter onOpenApp={onOpenApp} />
 
         <div className="text-white/90 text-xs font-medium flex items-center gap-2">
           <span>{currentDate}</span>

@@ -4,6 +4,7 @@ import { AppProvider, useAppContext } from './components/AppContext';
 import { FileSystemProvider, useFileSystem } from './components/FileSystemContext';
 import { GameRoot } from './components/Game/GameRoot';
 import { MusicProvider } from './components/MusicContext';
+import { NotificationProvider } from './contexts/NotificationContext';
 
 // Lazy load the Heavy OS component
 // This ensures we don't load Desktop/Apps/Assets until we actually start the game
@@ -79,11 +80,13 @@ export default function App() {
   return (
     <AppProvider>
       <FileSystemProvider>
-        <GameRoot>
-          <MusicProvider>
-            <AppContent />
-          </MusicProvider>
-        </GameRoot>
+        <NotificationProvider>
+          <GameRoot>
+            <MusicProvider>
+              <AppContent />
+            </MusicProvider>
+          </GameRoot>
+        </NotificationProvider>
       </FileSystemProvider>
     </AppProvider>
   );
