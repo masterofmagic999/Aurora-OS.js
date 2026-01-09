@@ -29,7 +29,7 @@ export function NotificationProvider({ children }: { children: ReactNode }) {
   const addNotification = useCallback((notification: Omit<Notification, 'id' | 'timestamp'>) => {
     const newNotification: Notification = {
       ...notification,
-      id: `notification-${Date.now()}-${Math.random()}`,
+      id: `notification-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`,
       timestamp: Date.now(),
     };
     
