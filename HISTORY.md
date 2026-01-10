@@ -15,6 +15,8 @@
 - **Finder/Desktop**: Improved "Get Info" diagnostic display with rich, internationalized details (Permissions, Owner, Modified, Size).
 - **All APPs**: Benefit from optimizations, especially in terms of React drawing and memory usage.
 - **Notepad**: Opens with an empty state that propts user to open a file, instead of the clasic "first tab already open" - this gives the posibility to close all tabs.
+- **Translation System**: Added `.scripts/check-identical-translations.js` to identify potentially untranslated strings by comparing locales against the English baseline.
+- **I18n Coverage**: Fully localized missing strings in `de.ts`, `es.ts`, `fr.ts`, and `pt.ts`, and refined `ro.ts` for natural phrasing.
 - **Translation System**: `.scripts/check-i18n.js` script find automatically missing or extra keys in translations as well as all the files in `/src/i18n/locales`. Aditional workflow for translations is added in [TRANSLATION.md](TRANSLATION.md).
 
 ### Fixed
