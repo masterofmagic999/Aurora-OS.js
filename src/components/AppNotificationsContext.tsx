@@ -65,7 +65,7 @@ export function AppNotificationsProvider({ children }: { children: React.ReactNo
     try {
       localStorage.setItem(storageKeyFor(activeUser), JSON.stringify(notifications));
     } catch {
-      
+      // Ignore storage errors
     }
   }, [notifications, activeUser]);
 
