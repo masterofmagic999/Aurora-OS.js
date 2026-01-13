@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, startTransition } from 'react';
 import { useAppContext } from '@/components/AppContext';
-
+import { soundManager } from '@/services/sound';
 
 export interface AppNotification {
   id: string;
@@ -69,6 +69,21 @@ export function AppNotificationsProvider({ children }: { children: React.ReactNo
     }
   }, [notifications, activeUser]);
 
+  const push = useCallback<AppNotificationsContextType['push']>((n) => {
+    const item: AppNotification = {
+      id: `${n.appId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
+      appId: n.appId,
+      owner: n.owner,
+      title: n.title,
+      message: n.message,
+      createdAt: Date.now(),
+      data: n.data,
+      unread: true,
+    };
+    setNotifications((prev) => [item, ...prev].slice(0, 100)); 
+    return item;
+  }, []);
+
   // Listen for system-wide events
   useEffect(() => {
     const handleAppNotification = (e: Event) => {
@@ -87,21 +102,6 @@ export function AppNotificationsProvider({ children }: { children: React.ReactNo
     window.addEventListener('aurora-app-notification', handleAppNotification);
     return () => window.removeEventListener('aurora-app-notification', handleAppNotification);
   }, [push]);
-
-  const push = useCallback<AppNotificationsContextType['push']>((n) => {
-    const item: AppNotification = {
-      id: `${n.appId}-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`,
-      appId: n.appId,
-      owner: n.owner,
-      title: n.title,
-      message: n.message,
-      createdAt: Date.now(),
-      data: n.data,
-      unread: true,
-    };
-    setNotifications((prev) => [item, ...prev].slice(0, 100)); 
-    return item;
-  }, []);
 
   const markRead = useCallback((id: string) => {
     setNotifications((prev) => prev.map((n) => (n.id === id ? { ...n, unread: false } : n)));
