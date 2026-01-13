@@ -14,7 +14,7 @@ export function HeadsUpStack({ notifications, onDismiss, onOpen }: HeadsUpStackP
   const { getBackgroundColor, blurStyle } = useThemeColors();
 
   return (
-    <div className="fixed top-4 right-4 z-100 flex flex-col gap-2 pointer-events-none w-80">
+    <div className="fixed top-14 right-4 z-9999 flex flex-col gap-2 pointer-events-none w-80">
       <AnimatePresence mode="popLayout">
         {notifications.map((notification) => {
           const app = getApp(notification.appId);

@@ -105,7 +105,7 @@ export function AppNotificationsProvider({ children, onOpenApp }: { children: Re
         data: detail.data
       });
       
-      setActiveToasts(prev => [item, ...prev].slice(0, 5)); // Max 5 visible
+      setActiveToasts(prev => [item, ...prev].slice(0, 3)); // Max 3 visible
       // Auto dismiss
       setTimeout(() => dismissToast(item.id), TOAST_DURATION);
 
