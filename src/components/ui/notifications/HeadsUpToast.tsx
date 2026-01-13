@@ -14,7 +14,7 @@ export function HeadsUpStack({ notifications, onDismiss, onOpen }: HeadsUpStackP
   const { getBackgroundColor, blurStyle } = useThemeColors();
 
   return (
-    <div className="fixed top-14 right-4 z-9999 flex flex-col gap-2 pointer-events-none w-80">
+    <div className="fixed top-14 right-4 z-9999 flex flex-col gap-2 pointer-events-none w-80 select-none">
       <AnimatePresence mode="popLayout">
         {notifications.map((notification) => {
           const app = getApp(notification.appId);
@@ -36,7 +36,11 @@ export function HeadsUpStack({ notifications, onDismiss, onOpen }: HeadsUpStackP
                 </div>
                 <div 
                   className="flex-1 min-w-0 py-0.5 cursor-pointer" 
-                  onClick={() => { onOpen(notification.appId, notification.data, notification.owner); onDismiss(notification.id); }}
+                  onClick={(e) => { 
+                    e.stopPropagation();
+                    onOpen(notification.appId, notification.data, notification.owner); 
+                    onDismiss(notification.id); 
+                  }}
                 >
                   <h3 className="font-medium text-white text-sm truncate">{notification.title}</h3>
                   <p className="text-white/60 text-xs mt-0.5 line-clamp-2">{notification.message}</p>

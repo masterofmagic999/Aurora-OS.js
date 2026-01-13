@@ -1,11 +1,12 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { Bell, X } from 'lucide-react';
-import { motion, AnimatePresence } from 'motion/react';
-import { Popover, PopoverContent, PopoverTrigger } from './ui/popover';
-import { useThemeColors } from '../hooks/useThemeColors';
-import { useAppContext } from './AppContext';
-import { useI18n } from '../i18n';
-import { useAppNotifications } from './AppNotificationsContext';
+import { motion } from 'motion/react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Accordion, AccordionItem, AccordionTrigger, AccordionContent } from '@/components/ui/accordion';
+import { useThemeColors } from '@/hooks/useThemeColors';
+import { useAppContext } from '@/components/AppContext';
+import { useI18n } from '@/i18n';
+import { useAppNotifications, type AppNotification } from '@/components/AppNotificationsContext';
 
 import { getApp } from '@/config/appRegistry';
 
@@ -13,12 +14,95 @@ interface NotificationsAppletProps {
   onOpenApp?: (appId: string, data?: Record<string, unknown>, owner?: string) => void;
 }
 
+// Memoized Notification Item to prevent re-renders of the entire list
+const NotificationItem = ({ notification, accentColor, t, timeMode, onRemove, onClick }: { 
+    notification: AppNotification, 
+    accentColor: string, 
+    t: (key: string) => string,
+    timeMode: 'server' | 'local',
+    onRemove: (id: string) => void,
+    onClick: (id: string, appId: string, data?: Record<string, unknown>, owner?: string) => void
+}) => {
+    return (
+        <motion.div
+            layout // Use layout animation for smooth sorting/filtering
+            exit={{ opacity: 0, height: 0 }}
+            transition={{ duration: 0.2 }}
+            className={`p-3 transition-colors relative group border-b border-white/5 last:border-0 ${notification.unread ? 'bg-white/5' : 'hover:bg-white/5'}`}
+            onClick={(e) => {
+                e.stopPropagation();
+                onClick(notification.id, notification.appId, notification.data, notification.owner);
+            }}
+        >
+            <div className="flex gap-3">
+                <div className="flex-1 min-w-0 pr-6 pl-1">
+                    <div className="flex items-center justify-between gap-2">
+                        <h3 className="text-sm text-white/90 font-medium truncate">{notification.title}</h3>
+                        <div className="flex items-center gap-2 shrink-0">
+                            {notification.unread && (
+                                <span className="text-[10px] px-1.5 py-[2px] rounded-full text-black font-bold" style={{ backgroundColor: accentColor }}>
+                                    {t('notifications.new') || 'New'}
+                                </span>
+                            )}
+                            <span className="text-[10px] text-white/35">
+                                {new Date(notification.createdAt).toLocaleTimeString([], { 
+                                    hour: '2-digit', 
+                                    minute: '2-digit',
+                                    timeZone: timeMode === 'server' ? 'UTC' : undefined 
+                                })}
+                            </span>
+                        </div>
+                    </div>
+                    {notification.message && (
+                        <p className="text-xs text-white/60 mt-1 line-clamp-2 leading-relaxed">{notification.message}</p>
+                    )}
+                </div>
+            </div>
+
+            <button
+                onClick={(e) => {
+                    e.stopPropagation();
+                    onRemove(notification.id);
+                }}
+                className="absolute top-3 right-2 p-1 rounded-full hover:bg-white/10 text-white/30 hover:text-white/80 transition-all opacity-0 group-hover:opacity-100"
+                title={t('notifications.subtitles.deleted') || "Delete"}
+            >
+                <X className="w-3.5 h-3.5" />
+            </button>
+        </motion.div>
+    );
+};
+
 export function NotificationsApplet({ onOpenApp }: NotificationsAppletProps) {
-  const { accentColor, reduceMotion, disableShadows } = useAppContext();
+  const { accentColor, reduceMotion, disableShadows, timeMode } = useAppContext();
   const { blurStyle, getBackgroundColor } = useThemeColors();
   const { t } = useI18n();
   const { notifications, unreadCount, markRead, clearAll, remove } = useAppNotifications();
   const [isOpen, setIsOpen] = useState(false);
+
+  // Group notifications by appId
+  const groupedNotifications = useMemo(() => {
+    const groups: Record<string, AppNotification[]> = {};
+    notifications.forEach(n => {
+      if (!groups[n.appId]) groups[n.appId] = [];
+      groups[n.appId].push(n);
+    });
+    return groups;
+  }, [notifications]);
+
+  // Determine default expanded (newest)
+  const defaultExpanded = useMemo(() => {
+      if (notifications.length === 0) return [];
+      const latest = notifications.reduce((prev, curr) => 
+          new Date(curr.createdAt).getTime() > new Date(prev.createdAt).getTime() ? curr : prev
+      , notifications[0]);
+      return [latest.appId];
+  }, [notifications]);
+
+  const clearGroup = (appId: string) => {
+      const ids = groupedNotifications[appId]?.map(n => n.id) || [];
+      ids.forEach(id => remove(id));
+  };
 
   const handleNotificationClick = (id: string, appId: string, data: Record<string, unknown> | undefined, owner: string | undefined) => {
     if (appId && onOpenApp) {
@@ -48,7 +132,7 @@ export function NotificationsApplet({ onOpenApp }: NotificationsAppletProps) {
       </PopoverTrigger>
 
       <PopoverContent
-        className={`w-96 p-0 overflow-hidden border-white/20 rounded-2xl ${!disableShadows ? 'shadow-2xl' : 'shadow-none'} ${reduceMotion ? 'animate-none! duration-0!' : ''}`}
+        className={`w-96 p-0 overflow-hidden border-white/20 rounded-2xl select-none ${!disableShadows ? 'shadow-2xl' : 'shadow-none'} ${reduceMotion ? 'animate-none! duration-0!' : ''}`}
         style={{ background: getBackgroundColor(0.8), ...blurStyle }}
         align="end"
         sideOffset={12}
@@ -68,60 +152,77 @@ export function NotificationsApplet({ onOpenApp }: NotificationsAppletProps) {
         </div>
 
         {/* Notifications List */}
-        <div className="max-h-[500px] overflow-y-auto divide-y divide-white/5">
+        <div className="max-h-[500px] overflow-y-auto">
           {notifications.length === 0 ? (
-            <div className="p-6 text-white/50 text-sm text-center">{t('notifications.empty') || 'No notifications'}</div>
+            <div className="p-6 text-white/50 text-sm text-center">{t('notifications.empty')}</div>
           ) : (
-            <AnimatePresence>
-              {notifications.map((notification, idx) => {
-                const app = getApp(notification.appId);
-                const AppIcon = app?.icon || Bell;
-                
-                return (
-                <motion.div
-                  key={notification.id}
-                  className={`p-4 transition-colors relative group ${notification.unread ? 'bg-white/5' : 'bg-black/20 opacity-60 hover:opacity-100'}`}
-                  initial={{ opacity: 0, x: reduceMotion ? 0 : 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: reduceMotion ? 0 : idx * 0.05 }}
-                  onClick={() => handleNotificationClick(notification.id, notification.appId, notification.data, notification.owner)}
-                >
-                  <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-lg bg-white/10 flex items-center justify-center text-white/70 shrink-0 border border-white/10">
-                      <AppIcon className="w-4 h-4" />
-                    </div>
-                    <div className="flex-1 min-w-0 pr-6">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm text-white/90 font-medium truncate">{notification.title}</h3>
-                        {notification.unread && (
-                          <span className="text-[10px] px-1.5 py-[2px] rounded-full text-black" style={{ backgroundColor: accentColor }}>
-                            {t('notifications.new') || 'New'}
-                          </span>
-                        )}
-                      </div>
-                      {notification.message && (
-                        <p className="text-xs text-white/60 mt-1 line-clamp-2">{notification.message}</p>
-                      )}
-                      <div className="text-[10px] text-white/35 mt-1">
-                        {new Date(notification.createdAt).toLocaleTimeString()}
-                      </div>
-                    </div>
-                  </div>
+            <div className="p-2 space-y-2">
+              <Accordion 
+                type="multiple" 
+                defaultValue={defaultExpanded} 
+                className="space-y-2"
+              >
+                {Object.entries(groupedNotifications).map(([appId, appNotifications]) => {
+                  const app = getApp(appId);
+                  const AppIcon = app?.icon || Bell;
+                  const appName = app?.nameKey ? t(app.nameKey) : (app?.name || appId);
                   
-                  <button
-                    onClick={(e) => {
-                        e.stopPropagation();
-                        remove(notification.id);
-                    }}
-                    className="absolute top-4 right-2 p-1.5 rounded-full hover:bg-white/10 text-white/30 hover:text-white/80 transition-all opacity-0 group-hover:opacity-100"
-                    title={t('notifications.subtitles.deleted') || "Delete"}
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </motion.div>
-                );
-              })}
-            </AnimatePresence>
+                  const appUnreadCount = appNotifications.filter(n => n.unread).length;
+                  const isGroupUnread = appUnreadCount > 0;
+                  
+                  return (
+                    <AccordionItem 
+                        key={appId} 
+                        value={appId} 
+                        className={`border border-white/10 rounded-xl overflow-hidden transition-all ${
+                            isGroupUnread ? 'bg-black/20' : 'bg-black/40 opacity-70'
+                        }`}
+                    >
+                      <div className="flex items-center justify-between pr-2 border-b border-white/5 bg-white/5">
+                        <AccordionTrigger className="flex-1 px-3 py-2 text-sm text-white/90 hover:no-underline hover:bg-white/5 transition-colors">
+                           <div className="flex items-center gap-2">
+                             <AppIcon className={`w-4 h-4 ${isGroupUnread ? 'text-white/90' : 'text-white/50'}`} />
+                             <span className={`font-medium ${isGroupUnread ? 'text-white/90' : 'text-white/70'}`}>{appName}</span>
+                             {isGroupUnread && (
+                                <span className="text-[10px] bg-accent/20 px-1.5 py-0.5 rounded-full text-accent font-bold" style={{ color: accentColor, backgroundColor: `${accentColor}33` }}>
+                                    {appUnreadCount}
+                                </span>
+                             )}
+                           </div>
+                        </AccordionTrigger>
+                        <button
+                          onClick={(e) => {
+                             e.stopPropagation();
+                             clearGroup(appId);
+                          }}
+                          className="p-1.5 mr-1 rounded-md text-white/40 hover:text-white hover:bg-white/10 transition-colors"
+                          title={t('notifications.clearApp')}
+                        >
+                           <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                      
+                      <AccordionContent className="p-0">
+                         {/* Removed AnimatePresence wrapper around list, kept it inside Item or simplified */}
+                         <div className="divide-y divide-white/5">
+                             {appNotifications.map((notification) => (
+                               <NotificationItem 
+                                  key={notification.id}
+                                  notification={notification}
+                                  accentColor={accentColor}
+                                  t={t}
+                                  timeMode={timeMode}
+                                  onRemove={remove}
+                                  onClick={handleNotificationClick}
+                               />
+                             ))}
+                         </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  );
+                })}
+              </Accordion>
+            </div>
           )}
         </div>
 

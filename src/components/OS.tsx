@@ -193,7 +193,7 @@ export default function OS() {
                 break;
             case 'messages':
                 title = 'Messages';
-                content = <Messages owner={owner} />;
+                content = <Messages owner={owner} initialPartner={data?.partner} />;
                 break;
             case 'mail':
                 title = 'Mail';

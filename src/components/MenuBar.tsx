@@ -20,12 +20,12 @@ import {
   MenubarItem,
   MenubarSeparator,
   MenubarShortcut,
-} from './ui/menubar';
-import { Badge } from './ui/badge';
-import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip';
+} from '@/components/ui/menubar';
+import { Badge } from '@/components/ui/badge';
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
-import { getApp } from '../config/appRegistry';
-import { useI18n } from '../i18n/index';
+import { getApp } from '@/config/appRegistry';
+import { useI18n } from '@/i18n/index';
 
 interface MenuBarProps {
   focusedApp?: string | null;
@@ -221,7 +221,7 @@ function MenuBarComponent({ focusedApp, onOpenApp }: MenuBarProps) {
 
   return (
     <div
-      className={cn("absolute top-0 left-0 right-0 h-7 border-b border-white/10 flex items-center justify-between px-2 z-9999")}
+      className={cn("absolute top-0 left-0 right-0 h-7 border-b border-white/10 flex items-center justify-between px-2 z-9999 select-none")}
       style={{ background: menuBarBackground, ...blurStyle }}
     >
       {/* Left side */}
