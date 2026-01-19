@@ -1,6 +1,6 @@
 {
       "name": "aurora-os-js",
-      "version": "0.8.4",
+      "version": "0.8.4-alpha5",
       "private": true,
       "type": "module",
       "author": "Cătălin-Robert Drăgoiu",
@@ -142,7 +142,7 @@
       },
       "build": {
             "appId": "com.auroraos.app",
-            "productName": "Aurora OS",
+            "productName": "Aurora OS.js",
             "directories": {
                   "output": "release"
             },
@@ -170,13 +170,24 @@
                   "fr",
                   "pt",
                   "ro",
-                  "zh"
+                  "zh",
+                  "ru",
+                  "ja",
+                  "pl",
+                  "ko",
+                  "tr"
             ]
       },
       "overrides": {
             "react-day-picker": {
                   "react": "^19.0.0",
                   "react-dom": "^19.0.0"
+            },
+            "node-gyp": {
+                  "tar": "^7.5.3"
+            },
+            "cacache": {
+                  "tar": "^7.5.3"
             }
       }
 }
