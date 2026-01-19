@@ -77,7 +77,8 @@ function WindowComponent({
   // Calculate explicit dimensions for maximized state to ensure Rnd handles it correctly
   // Use globalThis to avoid shadowing the 'window' prop
   const maximizeWidth = typeof globalThis !== 'undefined' ? globalThis.innerWidth : 1000;
-  const maximizeHeight = typeof globalThis !== 'undefined' ? globalThis.innerHeight - 30 : 800; // 30px to be safe (28px bar + 2px border/shadow)
+  // Fixed: Removed the extra 2px safety margin so it touches the bottom (30 -> 28)
+  const maximizeHeight = typeof globalThis !== 'undefined' ? globalThis.innerHeight - 28 : 800; 
 
   const x = window.isMaximized ? 0 : window.position.x;
   const y = window.isMaximized ? 28 : window.position.y;
