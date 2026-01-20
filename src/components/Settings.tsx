@@ -22,7 +22,7 @@ import {
 import { SUPPORTED_LOCALES } from '../i18n/translations';
 import { useI18n } from '../i18n/index';
 import pkg from '../../package.json';
-import { BRAND } from '@/config/brand';
+import { BRAND } from '@/config/systemConfig';
 
 const settingsSidebarIcons = {
   appearance: Palette,

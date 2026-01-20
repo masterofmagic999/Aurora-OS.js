@@ -1,8 +1,7 @@
 import { createContext, useContext, useState, ReactNode, useEffect, useCallback } from 'react';
-import { STORAGE_KEYS } from '../utils/memory';
-import { SUPPORTED_LOCALES } from '../i18n/translations';
-import { BRAND } from '@/config/brand';
-import { DEFAULT_SYSTEM_MEMORY_GB } from '@/config/systemConfig';
+import { STORAGE_KEYS } from '@/utils/memory';
+import { SUPPORTED_LOCALES } from '@/i18n/translations';
+import { BRAND, DEFAULT_SYSTEM_MEMORY_GB } from '@/config/systemConfig';
 
 type ThemeMode = 'neutral' | 'shades' | 'contrast';
 
